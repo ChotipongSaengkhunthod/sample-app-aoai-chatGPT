@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import csv
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -40,7 +41,8 @@ FILE_FORMAT_DICT = {
         "py": "python",
         "pdf": "pdf",
         "docx": "docx",
-        "pptx": "pptx"
+        "pptx": "pptx",
+        "csv":"csv"
     }
 
 RETRY_COUNT = 5
@@ -759,7 +761,7 @@ def chunk_content(
     Returns:
         List[Document]: List of chunked documents.
     """
-
+    print("Start Function : chunk_content")
     try:
         if file_name is None or (cracked_pdf and not use_layout):
             file_format = "text"
@@ -843,6 +845,7 @@ def chunk_file(
     Returns:
         List[Document]: List of chunked documents.
     """
+    print("Start Function : chunk_file")
     file_name = os.path.basename(file_path)
     file_format = _get_file_format(file_name, extensions_to_process)
     if not file_format:
@@ -860,7 +863,16 @@ def chunk_file(
         content = extract_pdf_content(file_path, form_recognizer_client, use_layout=use_layout)
         cracked_pdf = True
     else:
+        if file_format in ["csv"]:
+            file_path_in = file_path
+            file_path = file_path.replace('.csv','.txt')
+            file_name = file_name.replace('.csv','.txt')
+            with open(file_path, "w") as my_output_file:
+                with open(file_path_in, "r") as my_input_file:
+                    [my_output_file.write(" ".join(row)+'\n') for row in csv.reader(my_input_file)]
+                my_output_file.close()
         try:
+            print(f"Open File {file_path}")
             with open(file_path, "r", encoding="utf8") as f:
                 content = f.read()
         except UnicodeDecodeError:
@@ -869,6 +881,8 @@ def chunk_file(
                 binary_content = f.read()
                 encoding = detect(binary_content).get('encoding', 'utf8')
                 content = binary_content.decode(encoding)
+    
+    print(content)
         
     return chunk_content(
         content=content,
