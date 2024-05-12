@@ -205,6 +205,14 @@ def create_or_update_search_index(
                 "searchable": True,
             },
             {
+                "name": "category",
+                "type": "Edm.String",
+                "searchable": True,
+                "sortable": False,
+                "facetable": False,
+                "filterable": True,
+            },
+            {
                 "name": "metadata",
                 "type": "Edm.String",
                 "searchable": True,
@@ -323,6 +331,7 @@ def validate_index(service_name, subscription_id, resource_group, index_name):
 
         if response.status_code == 200:
             response = response.json()
+            print(response)
             num_chunks = response['documentCount']
             if num_chunks==0 and retry_count < 4:
                 print("Index is empty. Waiting 60 seconds to check again...")
@@ -343,7 +352,7 @@ def validate_index(service_name, subscription_id, resource_group, index_name):
                 print(f"Request failed. Please investigate. Status code: {response.status_code}")
             break
 
-def create_index(config, credential, form_recognizer_client=None, embedding_model_endpoint=None, use_layout=False, njobs=4):
+def create_index(config, credential, form_recognizer_client=None, embedding_model_endpoint=None, use_layout=False, njobs=4,category=None):
     service_name = config["search_service_name"]
     subscription_id = config["subscription_id"]
     resource_group = config["resource_group"]
@@ -385,8 +394,8 @@ def create_index(config, credential, form_recognizer_client=None, embedding_mode
 
     for data_config in data_configs:
         # chunk directory
-        print(f"Chunking path {data_config['path']}...")
-        add_embeddings = False
+        print(f"Chunking path {data_config['path']}... with index {category}")
+        add_embeddings = True
         if config.get("vector_config_name") and embedding_model_endpoint:
             add_embeddings = True
 
@@ -397,7 +406,7 @@ def create_index(config, credential, form_recognizer_client=None, embedding_mode
         elif os.path.exists(data_config["path"]):
             result = chunk_directory(data_config["path"], num_tokens=config["chunk_size"], token_overlap=config.get("token_overlap",0),
                                     azure_credential=credential, form_recognizer_client=form_recognizer_client, use_layout=use_layout, njobs=njobs,
-                                    add_embeddings=add_embeddings, embedding_endpoint=embedding_model_endpoint, url_prefix=data_config["url_prefix"])
+                                    add_embeddings=add_embeddings, embedding_endpoint=embedding_model_endpoint, url_prefix=data_config["url_prefix"],category=category)
         else:
             raise Exception(f"Path {data_config['path']} does not exist and is not a blob URL. Please check the path and try again.")
 
@@ -428,13 +437,14 @@ def valid_range(n):
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, help="Path to config file containing settings for data preparation")
+    parser.add_argument("--category", type=str, help="Category of Prep Document")
     parser.add_argument("--form-rec-resource", type=str, help="Name of your Form Recognizer resource to use for PDF cracking.")
     parser.add_argument("--form-rec-key", type=str, help="Key for your Form Recognizer resource to use for PDF cracking.")
     parser.add_argument("--form-rec-use-layout", default=False, action='store_true', help="Whether to use Layout model for PDF cracking, if False will use Read model.")
     parser.add_argument("--njobs", type=valid_range, default=4, help="Number of jobs to run (between 1 and 32). Default=4")
-    parser.add_argument("--embedding-model-endpoint", type=str, help="Endpoint for the embedding model to use for vector search. Format: 'https://<AOAI resource name>.openai.azure.com/openai/deployments/<Ada deployment name>/embeddings?api-version=2023-03-15-preview'")
-    parser.add_argument("--embedding-model-key", type=str, help="Key for the embedding model to use for vector search.")
-    parser.add_argument("--search-admin-key", type=str, help="Admin key for the search service. If not provided, will use Azure CLI to get the key.")
+    parser.add_argument("--embedding-model-endpoint", default='https://poc-tmg-chattoorder.openai.azure.com/openai/deployments/embedding/embeddings?api-version=2023-03-15-preview',type=str, help="Endpoint for the embedding model to use for vector search. Format: 'https://<AOAI resource name>.openai.azure.com/openai/deployments/<Ada deployment name>/embeddings?api-version=2023-03-15-preview'")
+    parser.add_argument("--embedding-model-key", default='a0c71fd7a33b4bfa9d83cd2c33441145',type=str, help="Key for the embedding model to use for vector search.")
+    parser.add_argument("--search-admin-key", default="",type=str, help="Admin key for the search service. If not provided, will use Azure CLI to get the key.")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -446,6 +456,8 @@ if __name__ == "__main__":
     print("Data preparation script started")
     if args.search_admin_key:
         os.environ["AZURE_SEARCH_ADMIN_KEY"] = args.search_admin_key
+    if not args.category:
+        raise Exception("ERROR : Please input --category")
 
     if args.form_rec_resource and args.form_rec_key:
         os.environ["FORM_RECOGNIZER_ENDPOINT"] = f"https://{args.form_rec_resource}.cognitiveservices.azure.com/"
@@ -459,7 +471,7 @@ if __name__ == "__main__":
         if index_config.get("vector_config_name") and not args.embedding_model_endpoint:
             raise Exception("ERROR: Vector search is enabled in the config, but no embedding model endpoint and key were provided. Please provide these values or disable vector search.")
     
-        create_index(index_config, credential, form_recognizer_client, embedding_model_endpoint=args.embedding_model_endpoint, use_layout=args.form_rec_use_layout, njobs=args.njobs)
+        create_index(index_config, credential, form_recognizer_client, embedding_model_endpoint=args.embedding_model_endpoint, use_layout=args.form_rec_use_layout, njobs=args.njobs,category=args.category)
         print("Data preparation for index", index_config["index_name"], "completed")
 
     print(f"Data preparation script completed. {len(config)} indexes updated.")

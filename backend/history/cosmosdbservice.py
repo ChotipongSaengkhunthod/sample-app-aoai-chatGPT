@@ -1,16 +1,18 @@
 import uuid
 from datetime import datetime
 from azure.cosmos.aio import CosmosClient
+from pymongo.mongo_client import MongoClient
 from azure.cosmos import exceptions
   
 class CosmosConversationClient():
     
-    def __init__(self, cosmosdb_endpoint: str, credential: any, database_name: str, container_name: str, enable_message_feedback: bool = False):
+    def __init__(self, cosmosdb_endpoint: str,credential: any, database_name: str, container_name: str, enable_message_feedback: bool = False,):
         self.cosmosdb_endpoint = cosmosdb_endpoint
         self.credential = credential
         self.database_name = database_name
         self.container_name = container_name
         self.enable_message_feedback = enable_message_feedback
+
         try:
             self.cosmosdb_client = CosmosClient(self.cosmosdb_endpoint, credential=credential)
         except exceptions.CosmosHttpResponseError as e:
@@ -84,6 +86,7 @@ class CosmosConversationClient():
         response_list = []
         if messages:
             for message in messages:
+                print(f"DELETE ({message['id']}) ({user_id})")
                 resp = await self.container_client.delete_item(item=message['id'], partition_key=user_id)
                 response_list.append(resp)
             return response_list

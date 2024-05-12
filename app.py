@@ -105,6 +105,7 @@ AZURE_SEARCH_TITLE_COLUMN = os.environ.get("AZURE_SEARCH_TITLE_COLUMN")
 AZURE_SEARCH_URL_COLUMN = os.environ.get("AZURE_SEARCH_URL_COLUMN")
 AZURE_SEARCH_VECTOR_COLUMNS = os.environ.get("AZURE_SEARCH_VECTOR_COLUMNS")
 AZURE_SEARCH_QUERY_TYPE = os.environ.get("AZURE_SEARCH_QUERY_TYPE")
+AZURE_SEARCH_FILTER = os.environ.get("AZURE_SEARCH_FILTER")
 AZURE_SEARCH_PERMITTED_GROUPS_COLUMN = os.environ.get(
     "AZURE_SEARCH_PERMITTED_GROUPS_COLUMN"
 )
@@ -304,13 +305,14 @@ def should_use_data():
 
     return False
 
-
+print('use Data')
 SHOULD_USE_DATA = should_use_data()
 
 
 # Initialize Azure OpenAI Client
 def init_openai_client(use_data=SHOULD_USE_DATA):
     azure_openai_client = None
+    logging.debug(f"Current API Version = {AZURE_OPENAI_PREVIEW_API_VERSION}")
     try:
         # API version check
         if (
@@ -383,7 +385,7 @@ def init_cosmosdb_client():
                 credential=credential,
                 database_name=AZURE_COSMOSDB_DATABASE,
                 container_name=AZURE_COSMOSDB_CONVERSATIONS_CONTAINER,
-                enable_message_feedback=AZURE_COSMOSDB_ENABLE_FEEDBACK,
+                enable_message_feedback=AZURE_COSMOSDB_ENABLE_FEEDBACK
             )
         except Exception as e:
             logging.exception("Exception in CosmosDB initialization", e)
@@ -409,8 +411,9 @@ def get_configured_data_source():
             query_type = "semantic"
 
         # Set filter
-        filter = None
+        filter = f"category eq '{AZURE_SEARCH_FILTER}'"
         userToken = None
+
         if AZURE_SEARCH_PERMITTED_GROUPS_COLUMN:
             userToken = request.headers.get("X-MS-TOKEN-AAD-ACCESS-TOKEN", "")
             logging.debug(f"USER TOKEN is {'present' if userToken else 'not present'}")
@@ -1309,6 +1312,7 @@ async def clear_messages():
             raise Exception("CosmosDB is not configured or not working")
 
         ## delete the conversation messages from cosmos
+        print(f"DELETE MASSAGE : userid={user_id},conversationid={conversation_id}")
         deleted_messages = await cosmos_conversation_client.delete_messages(
             conversation_id, user_id
         )

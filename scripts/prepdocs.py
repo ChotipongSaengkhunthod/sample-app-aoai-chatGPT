@@ -219,6 +219,8 @@ if __name__ == "__main__":
         else AzureKeyCredential(args.formrecognizerkey)
     )
 
+    
+
     print("Data preparation script started")
     print("Preparing data for index:", args.index)
     search_endpoint = f"https://{args.searchservice}.search.windows.net/"

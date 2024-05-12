@@ -245,6 +245,7 @@ class Document(object):
     filepath: Optional[str] = None
     url: Optional[str] = None
     metadata: Optional[Dict] = None
+    category : Optional[str] = None
     contentVector: Optional[List[float]] = None
 
 def cleanup_content(content: str) -> str:
@@ -746,7 +747,8 @@ def chunk_content(
     use_layout = False,
     add_embeddings = False,
     azure_credential = None,
-    embedding_endpoint = None
+    embedding_endpoint = None,
+    category = None
 ) -> ChunkingResult:
     """Chunks the given content. If ignore_errors is true, returns None
         in case of an error
@@ -795,12 +797,12 @@ def chunk_content(
                     if doc.contentVector is None:
                         raise Exception(f"Error getting embedding for chunk={chunk}")
                     
-
                 chunks.append(
                     Document(
                         content=chunk,
                         title=doc.title,
                         url=url,
+                        category=category,
                         contentVector=doc.contentVector
                     )
                 )
@@ -837,7 +839,8 @@ def chunk_file(
     use_layout = False,
     add_embeddings=False,
     azure_credential = None,
-    embedding_endpoint = None
+    embedding_endpoint = None,
+    category = None
 ) -> ChunkingResult:
     """Chunks the given file.
     Args:
@@ -867,8 +870,8 @@ def chunk_file(
             file_path_in = file_path
             file_path = file_path.replace('.csv','.txt')
             file_name = file_name.replace('.csv','.txt')
-            with open(file_path, "w") as my_output_file:
-                with open(file_path_in, "r") as my_input_file:
+            with open(file_path, "w",encoding="utf8") as my_output_file:
+                with open(file_path_in, "r",encoding="utf8") as my_input_file:
                     [my_output_file.write(" ".join(row)+'\n') for row in csv.reader(my_input_file)]
                 my_output_file.close()
         try:
@@ -882,7 +885,7 @@ def chunk_file(
                 encoding = detect(binary_content).get('encoding', 'utf8')
                 content = binary_content.decode(encoding)
     
-    print(content)
+    
         
     return chunk_content(
         content=content,
@@ -897,6 +900,7 @@ def chunk_file(
         use_layout=use_layout,
         add_embeddings=add_embeddings,
         azure_credential=azure_credential,
+        category=category,
         embedding_endpoint=embedding_endpoint
     )
 
@@ -914,9 +918,10 @@ def process_file(
         use_layout = False,
         add_embeddings = False,
         azure_credential = None,
-        embedding_endpoint = None
+        category = None,
+        embedding_endpoint = None,
     ):
-
+    print("Start Function : Process File")
     if not form_recognizer_client:
         form_recognizer_client = SingletonFormRecognizerClient()
 
@@ -940,7 +945,8 @@ def process_file(
             use_layout=use_layout,
             add_embeddings=add_embeddings,
             azure_credential=azure_credential,
-            embedding_endpoint=embedding_endpoint
+            embedding_endpoint=embedding_endpoint,
+            category=category
         )
         for chunk_idx, chunk_doc in enumerate(result.chunks):
             chunk_doc.filepath = rel_file_path
@@ -1007,7 +1013,8 @@ def chunk_directory(
         njobs=4,
         add_embeddings = False,
         azure_credential = None,
-        embedding_endpoint = None
+        category = None,
+        embedding_endpoint = None,
 ):
     """
     Chunks the given directory recursively
@@ -1049,7 +1056,7 @@ def chunk_directory(
                                        token_overlap=token_overlap,
                                        extensions_to_process=extensions_to_process,
                                        form_recognizer_client=form_recognizer_client, use_layout=use_layout, add_embeddings=add_embeddings,
-                                       azure_credential=azure_credential, embedding_endpoint=embedding_endpoint)
+                                       azure_credential=azure_credential, embedding_endpoint=embedding_endpoint,category=category)
             if is_error:
                 num_files_with_errors += 1
                 continue
@@ -1065,7 +1072,7 @@ def chunk_directory(
                                        token_overlap=token_overlap,
                                        extensions_to_process=extensions_to_process,
                                        form_recognizer_client=None, use_layout=use_layout, add_embeddings=add_embeddings,
-                                       azure_credential=azure_credential, embedding_endpoint=embedding_endpoint)
+                                       azure_credential=azure_credential, embedding_endpoint=embedding_endpoint,category=category)
         with ProcessPoolExecutor(max_workers=njobs) as executor:
             futures = list(tqdm(executor.map(process_file_partial, files_to_process), total=len(files_to_process)))
             for result, is_error in futures:
@@ -1077,6 +1084,7 @@ def chunk_directory(
                 num_unsupported_format_files += result.num_unsupported_format_files
                 num_files_with_errors += result.num_files_with_errors
                 skipped_chunks += result.skipped_chunks
+    print()
 
     return ChunkingResult(
             chunks=chunks,
